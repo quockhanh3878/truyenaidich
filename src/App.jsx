@@ -290,9 +290,6 @@ export default function App() {
     chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  return (
-    // ... (JSX không thay đổi)
-  );
 }ter(null);
     setSearchTerm("");
   }, []);
