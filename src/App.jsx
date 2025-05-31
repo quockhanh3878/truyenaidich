@@ -26,25 +26,25 @@ export default function App() {
       title: "Thế Giới Huyền Bí",
       author: "Nguyễn Văn A",
       genre: "Phiêu Lưu",
-      cover: "https://picsum.photos/200/300",   
+      cover: "https://picsum.photos/200/300",
     },
     {
       id: 2,
       title: "Chiến Binh Ánh Sáng",
       author: "Trần Thị B",
       genre: "Khoa Học",
-      cover: "https://picsum.photos/201/301",   
+      cover: "https://picsum.photos/201/301",
     },
     {
       id: 3,
       title: "Tình Yêu Vượt Thời Gian",
       author: "Phạm Văn C",
       genre: "Tình Cảm",
-      cover: "https://picsum.photos/202/302",   
+      cover: "https://picsum.photos/202/302",
     },
   ];
 
-  // ✅ Di chuyển 2 hàm này lên trước `useEffect` đầu tiên
+  // Load books from IndexedDB
   const loadBooksFromIndexedDB = useCallback((database) => {
     const transaction = database.transaction(["uploadedBooks"], "readonly");
     const store = transaction.objectStore("uploadedBooks");
@@ -54,6 +54,7 @@ export default function App() {
     };
   }, []);
 
+  // Load saved books from IndexedDB
   const loadSavedBooksFromIndexedDB = useCallback((database) => {
     const transaction = database.transaction(["savedBooks"], "readonly");
     const store = transaction.objectStore("savedBooks");
@@ -84,7 +85,7 @@ export default function App() {
         savedStore.createIndex("id", "id", { unique: true });
       }
     };
-  }, [loadBooksFromIndexedDB, loadSavedBooksFromIndexedDB]); // Added dependencies
+  }, [loadBooksFromIndexedDB, loadSavedBooksFromIndexedDB]);
 
   // Handle online/offline status
   useEffect(() => {
@@ -102,10 +103,7 @@ export default function App() {
   useEffect(() => {
     if (selectedBook) {
       setSelectedChapter(selectedBook.chapters[currentChapterIndex]);
-      localStorage.setItem(
-        `readingPosition_${selectedBook.id}`,
-        currentChapterIndex
-      );
+      localStorage.setItem(`readingPosition_${selectedBook.id}`, currentChapterIndex);
     }
   }, [currentChapterIndex, selectedBook]);
 
@@ -140,7 +138,7 @@ export default function App() {
     store.delete(bookId);
   }, [db]);
 
-  const deleteBookFromIndexedDB = useCallback((bookId) => {
+  const deleteBookFromIndexedDB = useCallback((bookId) |  {
     if (!db) return;
     const transaction = db.transaction(["uploadedBooks"], "readwrite");
     const store = transaction.objectStore("uploadedBooks");
@@ -285,23 +283,11 @@ export default function App() {
     setSelectedChapter(null);
     setSearchTerm("");
   }, []);
+
   // Filter chapters based on search term
   const filteredChapters = selectedBook?.chapters.filter((chapter) =>
     chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
-
-}ter(null);
-    setSearchTerm("");
-  }, []);
-  // Filter chapters based on search term
-  const filteredChapters = selectedBook?.chapters.filter((chapter) =>
-    chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
-  ) || [];
-
-  return (
-    // ... (JSX không thay đổi)
-  );
-}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-indigo-50 text-gray-800 font-sans transition-colors duration-300">
@@ -926,7 +912,7 @@ export default function App() {
                     strokeLinejoin="round"
                     strokeWidth="2"
                     d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                />
+                  />
                 </svg>
                 <p className="font-medium">Bạn đang thực hiện hành động nhạy cảm</p>
               </div>
@@ -963,19 +949,19 @@ export default function App() {
               </button>
             </div>
           </div>
-      </div>
-    )}
+        </div>
+      )}
 
-    {/* CSS for animations */}
-    <style jsx>{`
-      @keyframes slideIn {
-        from { transform: translateY(20px); opacity: 0; }
-        to { transform: translateY(0); opacity: 1; }
-      }
-      .animate-slideIn {
-        animation: slideIn 0.3s ease-out forwards;
-      }
-    `}</style>
-  </div>
-);
+      {/* CSS for animations */}
+      <style jsx>{`
+        @keyframes slideIn {
+          from { transform: translateY(20px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slideIn {
+          animation: slideIn 0.3s ease-out forwards;
+        }
+      `}</style>
+    </div>
+  );
 }
