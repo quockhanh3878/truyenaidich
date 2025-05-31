@@ -17,7 +17,6 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingBookId, setEditingBookId] = useState(null);
   const [newBookTitle, setNewBookTitle] = useState("");
-
   const ADMIN_PASSWORD = "truyenaidichdayA@";
 
   // Mock featured books
@@ -27,23 +26,42 @@ export default function App() {
       title: "Thế Giới Huyền Bí",
       author: "Nguyễn Văn A",
       genre: "Phiêu Lưu",
-      cover: "https://picsum.photos/200/300",
+      cover: "https://picsum.photos/200/300",   
     },
     {
       id: 2,
       title: "Chiến Binh Ánh Sáng",
       author: "Trần Thị B",
       genre: "Khoa Học",
-      cover: "https://picsum.photos/201/301",
+      cover: "https://picsum.photos/201/301",   
     },
     {
       id: 3,
       title: "Tình Yêu Vượt Thời Gian",
       author: "Phạm Văn C",
       genre: "Tình Cảm",
-      cover: "https://picsum.photos/202/302",
+      cover: "https://picsum.photos/202/302",   
     },
   ];
+
+  // ✅ Di chuyển 2 hàm này lên trước `useEffect` đầu tiên
+  const loadBooksFromIndexedDB = useCallback((database) => {
+    const transaction = database.transaction(["uploadedBooks"], "readonly");
+    const store = transaction.objectStore("uploadedBooks");
+    const getAllRequest = store.getAll();
+    getAllRequest.onsuccess = (event) => {
+      setBooks(event.target.result || []);
+    };
+  }, []);
+
+  const loadSavedBooksFromIndexedDB = useCallback((database) => {
+    const transaction = database.transaction(["savedBooks"], "readonly");
+    const store = transaction.objectStore("savedBooks");
+    const getAllRequest = store.getAll();
+    getAllRequest.onsuccess = (event) => {
+      setSavedBooks(event.target.result.map((item) => item.id));
+    };
+  }, []);
 
   // Initialize IndexedDB
   useEffect(() => {
@@ -100,24 +118,6 @@ export default function App() {
       }
     }
   }, [selectedBook]);
-
-  const loadBooksFromIndexedDB = useCallback((database) => {
-    const transaction = database.transaction(["uploadedBooks"], "readonly");
-    const store = transaction.objectStore("uploadedBooks");
-    const getAllRequest = store.getAll();
-    getAllRequest.onsuccess = (event) => {
-      setBooks(event.target.result || []);
-    };
-  }, []);
-
-  const loadSavedBooksFromIndexedDB = useCallback((database) => {
-    const transaction = database.transaction(["savedBooks"], "readonly");
-    const store = transaction.objectStore("savedBooks");
-    const getAllRequest = store.getAll();
-    getAllRequest.onsuccess = (event) => {
-      setSavedBooks(event.target.result.map((item) => item.id));
-    };
-  }, []);
 
   const saveBookToIndexedDB = useCallback((book) => {
     if (!db) return;
@@ -200,7 +200,7 @@ export default function App() {
     setSelectedBook(newBook);
     setUploading(false);
     alert(`Đã tải lên thành công ${newBook.chapters.length} chương`);
-  }, [books, isOffline, readFileContent, saveBookToIndexedDB]); // Added dependencies
+  }, [books, isOffline, readFileContent, saveBookToIndexedDB]);
 
   const handleSaveBook = useCallback(() => {
     if (!selectedBook) return;
@@ -270,29 +270,41 @@ export default function App() {
 
   const increaseFont = useCallback(() => setFontSize((prev) => Math.min(prev + 2, 24)), []);
   const decreaseFont = useCallback(() => setFontSize((prev) => Math.max(prev - 2, 12)), []);
-
   const goToNextChapter = useCallback(() => {
     if (selectedBook && currentChapterIndex < selectedBook.chapters.length - 1) {
       setCurrentChapterIndex(currentChapterIndex + 1);
     }
   }, [selectedBook, currentChapterIndex]);
-
   const goToPreviousChapter = useCallback(() => {
     if (selectedBook && currentChapterIndex > 0) {
       setCurrentChapterIndex(currentChapterIndex - 1);
     }
   }, [selectedBook, currentChapterIndex]);
-
   const handleGoHome = useCallback(() => {
     setSelectedBook(null);
     setSelectedChapter(null);
     setSearchTerm("");
   }, []);
-
   // Filter chapters based on search term
   const filteredChapters = selectedBook?.chapters.filter((chapter) =>
     chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
+
+  return (
+    // ... (JSX không thay đổi)
+  );
+}ter(null);
+    setSearchTerm("");
+  }, []);
+  // Filter chapters based on search term
+  const filteredChapters = selectedBook?.chapters.filter((chapter) =>
+    chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
+  ) || [];
+
+  return (
+    // ... (JSX không thay đổi)
+  );
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-indigo-50 text-gray-800 font-sans transition-colors duration-300">
