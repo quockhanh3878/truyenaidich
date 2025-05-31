@@ -4,6 +4,7 @@ export default function App() {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
   const [selectedChapter, setSelectedChapter] = useState(null);
+  const [currentChapterIndex, setCurrentChapterIndex] = useState(0); // Thêm state cho chương hiện tại
   const [fontSize, setFontSize] = useState(16);
   const [savedBooks, setSavedBooks] = useState([]);
   const [uploading, setUploading] = useState(false);
@@ -14,10 +15,8 @@ export default function App() {
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [passwordError, setPasswordError] = useState("");
 
-  // Mật khẩu xác thực
   const ADMIN_PASSWORD = "truyenaidichdayA@";
 
-  // Khởi tạo IndexedDB
   useEffect(() => {
     const request = indexedDB.open("TruyenAIDichDB", 2);
     
@@ -47,7 +46,6 @@ export default function App() {
     };
   }, []);
 
-  // Kiểm tra trạng thái mạng
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
@@ -61,7 +59,13 @@ export default function App() {
     };
   }, []);
 
-  // Tải sách đã tải lên từ IndexedDB
+  // Cập nhật selectedChapter khi currentChapterIndex thay đổi
+  useEffect(() => {
+    if (selectedBook) {
+      setSelectedChapter(selectedBook.chapters[currentChapterIndex]);
+    }
+  }, [currentChapterIndex, selectedBook]);
+
   const loadBooksFromIndexedDB = (database) => {
     const transaction = database.transaction(["uploadedBooks"], "readonly");
     const store = transaction.objectStore("uploadedBooks");
@@ -72,7 +76,6 @@ export default function App() {
     };
   };
 
-  // Tải sách đã lưu từ IndexedDB
   const loadSavedBooksFromIndexedDB = (database) => {
     const transaction = database.transaction(["savedBooks"], "readonly");
     const store = transaction.objectStore("savedBooks");
@@ -84,7 +87,6 @@ export default function App() {
     };
   };
 
-  // Lưu sách vào IndexedDB
   const saveBookToIndexedDB = (book) => {
     if (!db) return;
     
@@ -93,7 +95,6 @@ export default function App() {
     store.put(book);
   };
 
-  // Lưu ID sách đã lưu vào IndexedDB
   const saveSavedBookToIndexedDB = (bookId) => {
     if (!db) return;
     
@@ -102,7 +103,6 @@ export default function App() {
     store.put({ id: bookId });
   };
 
-  // Xóa sách đã lưu khỏi IndexedDB
   const removeSavedBookFromIndexedDB = (bookId) => {
     if (!db) return;
     
@@ -111,7 +111,6 @@ export default function App() {
     store.delete(bookId);
   };
 
-  // Xử lý tải lên thư mục chứa file txt
   const handleDirectoryUpload = async (event) => {
     if (isOffline) {
       alert("Không thể tải lên khi đang ở chế độ offline");
@@ -121,11 +120,9 @@ export default function App() {
     setUploading(true);
     const files = Array.from(event.target.files);
     
-    // Lọc chỉ lấy file .txt và sắp xếp theo tên tệp
     const txtFiles = files
       .filter(file => file.name.toLowerCase().endsWith('.txt'))
       .sort((a, b) => {
-        // Trích xuất số chương từ tên tệp
         const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
         const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
         return numA - numB;
@@ -137,7 +134,6 @@ export default function App() {
       return;
     }
 
-    // Tạo đối tượng sách mới
     const newBook = {
       id: Date.now(),
       title: "Truyện Tải Lên",
@@ -146,7 +142,6 @@ export default function App() {
       chapters: []
     };
 
-    // Đọc nội dung từng file
     for (const file of txtFiles) {
       try {
         const content = await readFileContent(file);
@@ -161,7 +156,6 @@ export default function App() {
       }
     }
 
-    // Lưu vào IndexedDB
     saveBookToIndexedDB(newBook);
     const updatedBooks = [...books, newBook];
     setBooks(updatedBooks);
@@ -171,7 +165,6 @@ export default function App() {
     alert(`Đã tải lên thành công ${newBook.chapters.length} chương`);
   };
 
-  // Đọc nội dung file với UTF-8
   const readFileContent = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -188,7 +181,6 @@ export default function App() {
     });
   };
 
-  // Lưu toàn bộ truyện vào IndexedDB
   const handleSaveBook = () => {
     if (!selectedBook) return;
 
@@ -208,7 +200,6 @@ export default function App() {
     }
   };
 
-  // Hiển thị modal xác nhận xóa
   const handleShowDeleteModal = (bookId) => {
     setDeleteTargetId(bookId);
     setShowPasswordModal(true);
@@ -216,7 +207,6 @@ export default function App() {
     setPasswordError("");
   };
 
-  // Xác thực mật khẩu và xóa truyện
   const handleConfirmDelete = () => {
     if (passwordInput === ADMIN_PASSWORD) {
       removeSavedBookFromIndexedDB(deleteTargetId);
@@ -231,36 +221,34 @@ export default function App() {
   const increaseFont = () => setFontSize((prev) => Math.min(prev + 2, 24));
   const decreaseFont = () => setFontSize((prev) => Math.max(prev - 2, 12));
 
-  // Đăng ký Service Worker
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then(registration => {
-          console.log('Service Worker đăng ký thành công:', registration);
-        })
-        .catch(error => {
-          console.error('Service Worker đăng ký thất bại:', error);
-        });
+  // Hàm chuyển chương
+  const goToNextChapter = () => {
+    if (selectedBook && currentChapterIndex < selectedBook.chapters.length - 1) {
+      setCurrentChapterIndex(currentChapterIndex + 1);
     }
-  }, []);
+  };
+
+  const goToPreviousChapter = () => {
+    if (selectedBook && currentChapterIndex > 0) {
+      setCurrentChapterIndex(currentChapterIndex - 1);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-800 font-sans transition-colors duration-300">
-      {/* Thông báo offline */}
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 text-gray-800 font-sans transition-colors duration-300">
       {isOffline && (
-        <div className="bg-yellow-500 text-white p-2 text-center text-sm font-medium">
+        <div className="bg-yellow-400 text-gray-900 p-2 text-center text-sm font-medium shadow">
           Bạn đang ở chế độ offline. Một số tính năng có thể bị giới hạn.
         </div>
       )}
 
-      {/* Header */}
-      <header className="bg-gradient-to-r from-purple-600 to-indigo-700 text-white shadow-lg sticky top-0 z-10">
+      <header className="bg-gradient-to-r from-indigo-600 to-purple-700 text-white shadow-lg sticky top-0 z-10">
         <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold"> Truyện AI Dịch </h1>
+          <h1 className="text-2xl font-bold tracking-tight">Truyện AI Dịch</h1>
           <div className="flex space-x-2">
             <button
               onClick={() => document.getElementById('fileInput').click()}
-              className="px-4 py-2 bg-white text-purple-700 rounded-full hover:bg-purple-50 transition text-sm font-medium"
+              className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition text-sm font-medium shadow"
             >
               Tải Lên Thư Mục
             </button>
@@ -277,14 +265,13 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         {uploading && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white p-6 rounded-lg shadow-xl">
               <div className="flex flex-col items-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-                <p className="text-lg font-medium">Đang xử lý file...</p>
+                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500 mb-4"></div>
+                <p className="text-lg font-medium text-gray-700">Đang xử lý file...</p>
                 <p className="text-sm text-gray-500 mt-2">Vui lòng chờ trong giây lát</p>
               </div>
             </div>
@@ -292,9 +279,8 @@ export default function App() {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Danh sách sách */}
           <div className="space-y-3">
-            <h2 className="text-xl font-semibold mb-2">Danh Sách Truyện</h2>
+            <h2 className="text-xl font-semibold mb-2 text-indigo-700">Danh Sách Truyện</h2>
             {books.length === 0 ? (
               <div className="bg-white p-6 rounded-lg shadow text-center">
                 <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -303,7 +289,7 @@ export default function App() {
                 <p className="text-gray-600 mb-4">Chưa có truyện nào được tải lên</p>
                 <button 
                   onClick={() => document.getElementById('fileInput').click()}
-                  className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition"
+                  className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition shadow"
                 >
                   Tải Lên Thư Mục
                 </button>
@@ -313,13 +299,13 @@ export default function App() {
                 <div
                   key={book.id}
                   onClick={() => setSelectedBook(book)}
-                  className={`p-3 rounded-lg cursor-pointer border-l-4 transition-all duration-200 ${
+                  className={`p-3 rounded-lg cursor-pointer border-l-4 transition-all duration-200 shadow-sm ${
                     selectedBook?.id === book.id
-                      ? "border-purple-500 bg-purple-50"
+                      ? "border-indigo-500 bg-indigo-50"
                       : "border-transparent hover:bg-gray-100"
                   }`}
                 >
-                  <h3 className="font-medium">{book.title}</h3>
+                  <h3 className="font-medium text-indigo-700">{book.title}</h3>
                   <p className="text-sm text-gray-600">Tác giả: {book.author}</p>
                   <p className="text-xs text-gray-500 mt-1">Thể loại: {book.genre}</p>
                 </div>
@@ -327,7 +313,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Danh sách chương & nội dung */}
           <div className="md:col-span-2 space-y-6">
             {!selectedBook ? (
               <div className="bg-white p-6 rounded-lg shadow text-center">
@@ -339,10 +324,10 @@ export default function App() {
             ) : !selectedChapter ? (
               <>
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">Danh Sách Chương - {selectedBook?.title}</h2>
+                  <h2 className="text-xl font-semibold text-indigo-700">Danh Sách Chương - {selectedBook?.title}</h2>
                   <button
                     onClick={handleSaveBook}
-                    className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 transition text-sm font-medium"
+                    className="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition text-sm font-medium shadow"
                   >
                     Lưu Toàn Bộ Truyện
                   </button>
@@ -352,9 +337,9 @@ export default function App() {
                     <div
                       key={chapter.id}
                       onClick={() => setSelectedChapter(chapter)}
-                      className="p-3 border rounded hover:bg-gray-100 cursor-pointer transition-colors duration-200"
+                      className="p-3 border rounded hover:bg-indigo-50 cursor-pointer transition-colors duration-200 shadow-sm"
                     >
-                      <h3 className="font-medium">{chapter.title}</h3>
+                      <h3 className="font-medium text-indigo-600">{chapter.title}</h3>
                     </div>
                   ))}
                 </div>
@@ -362,27 +347,44 @@ export default function App() {
             ) : (
               <>
                 <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold">{selectedChapter.title}</h2>
+                  <h2 className="text-xl font-semibold text-indigo-700">{selectedChapter.title}</h2>
                   <div className="flex space-x-2">
                     <button
                       onClick={decreaseFont}
-                      className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 transition"
+                      className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition shadow"
                     >
                       A-
                     </button>
                     <button
                       onClick={increaseFont}
-                      className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 transition"
+                      className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition shadow"
                     >
                       A+
                     </button>
                   </div>
                 </div>
                 <div
-                  style={{ fontSize: `${fontSize}px` }}
-                  className="prose prose-base max-w-none p-4 bg-white rounded shadow-inner leading-relaxed whitespace-pre-wrap min-h-[500px] overflow-y-auto"
+                  style={{ fontSize: `${fontSize / 16}rem` }} // Sử dụng rem thay vì px
+                  className="prose prose-base max-w-none p-4 bg-white rounded shadow-inner leading-relaxed whitespace-pre-wrap min-h-[500px] overflow-y-auto text-gray-800"
                 >
                   {selectedChapter.content}
+                </div>
+                {/* Nút chuyển chương */}
+                <div className="flex justify-between mt-4">
+                  <button
+                    onClick={goToPreviousChapter}
+                    disabled={currentChapterIndex === 0}
+                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
+                  >
+                    Chương trước
+                  </button>
+                  <button
+                    onClick={goToNextChapter}
+                    disabled={currentChapterIndex === selectedBook.chapters.length - 1}
+                    className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
+                  >
+                    Chương tiếp theo
+                  </button>
                 </div>
               </>
             )}
@@ -390,10 +392,9 @@ export default function App() {
         </div>
       </main>
 
-      {/* Saved Books Sidebar */}
       <aside className="fixed bottom-0 left-0 w-full bg-white shadow-lg border-t z-20">
         <div className="container mx-auto px-4 py-2">
-          <h3 className="text-sm font-medium mb-2">Truyện đã lưu:</h3>
+          <h3 className="text-sm font-medium mb-2 text-indigo-700">Truyện đã lưu:</h3>
           <div className="flex overflow-x-auto space-x-2 pb-2">
             {savedBooks.length === 0 ? (
               <span className="text-gray-500 italic">Chưa có truyện nào được lưu.</span>
@@ -403,7 +404,7 @@ export default function App() {
                 return book ? (
                   <div
                     key={bookId}
-                    className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-sm whitespace-nowrap flex items-center"
+                    className="bg-indigo-50 text-indigo-700 px-3 py-1 rounded-full text-sm whitespace-nowrap flex items-center shadow"
                   >
                     {book.title}
                     <button 
@@ -411,7 +412,7 @@ export default function App() {
                         e.stopPropagation();
                         handleShowDeleteModal(bookId);
                       }}
-                      className="ml-2 text-purple-400 hover:text-purple-900"
+                      className="ml-2 text-indigo-400 hover:text-indigo-900 transition"
                     >
                       ×
                     </button>
@@ -423,17 +424,16 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Password Modal */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl w-80">
-            <h3 className="text-lg font-medium mb-4">Xác nhận mật khẩu</h3>
+            <h3 className="text-lg font-medium mb-4 text-indigo-700">Xác nhận mật khẩu</h3>
             <input
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="Nhập mật khẩu"
-              className="w-full p-2 border rounded mb-2"
+              className="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               autoFocus
             />
             {passwordError && (
@@ -442,13 +442,13 @@ export default function App() {
             <div className="flex justify-end space-x-2">
               <button
                 onClick={() => setShowPasswordModal(false)}
-                className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300"
+                className="px-3 py-1 bg-gray-200 rounded hover:bg-gray-300 transition"
               >
                 Hủy
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-3 py-1 bg-purple-500 text-white rounded hover:bg-purple-600"
+                className="px-3 py-1 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition shadow"
               >
                 Xác nhận
               </button>
