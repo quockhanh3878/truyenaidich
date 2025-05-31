@@ -1,0 +1,10 @@
+{
+  "files": {
+    "main.js": "/your-repo-name/static/js/main.3eead5fc.js",
+    "index.html": "/your-repo-name/index.html",
+    "main.3eead5fc.js.map": "/your-repo-name/static/js/main.3eead5fc.js.map"
+  },
+  "entrypoints": [
+    "static/js/main.3eead5fc.js"
+  ]
+}
