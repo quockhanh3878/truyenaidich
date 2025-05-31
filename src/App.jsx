@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export default function App() {
   const [books, setBooks] = useState([]);
@@ -14,34 +14,53 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState("");
   const [deleteTargetId, setDeleteTargetId] = useState(null);
   const [passwordError, setPasswordError] = useState("");
-  const [searchTerm, setSearchTerm] = useState(""); // State cho tìm kiếm chương
-  const [editingBookId, setEditingBookId] = useState(null); // State cho chỉnh sửa tên truyện
+  const [searchTerm, setSearchTerm] = useState("");
+  const [editingBookId, setEditingBookId] = useState(null);
   const [newBookTitle, setNewBookTitle] = useState("");
 
   const ADMIN_PASSWORD = "truyenaidichdayA@";
 
+  // Mock featured books
+  const featuredBooks = [
+    {
+      id: 1,
+      title: "Thế Giới Huyền Bí",
+      author: "Nguyễn Văn A",
+      genre: "Phiêu Lưu",
+      cover: "https://picsum.photos/200/300",
+    },
+    {
+      id: 2,
+      title: "Chiến Binh Ánh Sáng",
+      author: "Trần Thị B",
+      genre: "Khoa Học",
+      cover: "https://picsum.photos/201/301",
+    },
+    {
+      id: 3,
+      title: "Tình Yêu Vượt Thời Gian",
+      author: "Phạm Văn C",
+      genre: "Tình Cảm",
+      cover: "https://picsum.photos/202/302",
+    },
+  ];
+
+  // Initialize IndexedDB
   useEffect(() => {
     const request = indexedDB.open("TruyenAIDichDB", 2);
-    
-    request.onerror = (event) => {
-      console.error("Không thể mở cơ sở dữ liệu");
-    };
-
+    request.onerror = () => console.error("Không thể mở cơ sở dữ liệu");
     request.onsuccess = (event) => {
       const database = event.target.result;
       setDb(database);
       loadBooksFromIndexedDB(database);
       loadSavedBooksFromIndexedDB(database);
     };
-
     request.onupgradeneeded = (event) => {
       const database = event.target.result;
-      
       if (!database.objectStoreNames.contains("uploadedBooks")) {
         const bookStore = database.createObjectStore("uploadedBooks", { keyPath: "id" });
         bookStore.createIndex("id", "id", { unique: true });
       }
-      
       if (!database.objectStoreNames.contains("savedBooks")) {
         const savedStore = database.createObjectStore("savedBooks", { keyPath: "id" });
         savedStore.createIndex("id", "id", { unique: true });
@@ -49,158 +68,146 @@ export default function App() {
     };
   }, []);
 
+  // Handle online/offline status
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
     const handleOffline = () => setIsOffline(true);
-    
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
     return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
     };
   }, []);
 
+  // Update selected chapter and save reading position
   useEffect(() => {
     if (selectedBook) {
       setSelectedChapter(selectedBook.chapters[currentChapterIndex]);
+      localStorage.setItem(
+        `readingPosition_${selectedBook.id}`,
+        currentChapterIndex
+      );
     }
   }, [currentChapterIndex, selectedBook]);
 
-  const loadBooksFromIndexedDB = (database) => {
+  // Load reading position when selecting a book
+  useEffect(() => {
+    if (selectedBook) {
+      const savedIndex = localStorage.getItem(`readingPosition_${selectedBook.id}`);
+      if (savedIndex && selectedBook.chapters[savedIndex]) {
+        setCurrentChapterIndex(parseInt(savedIndex, 10));
+      }
+    }
+  }, [selectedBook]);
+
+  const loadBooksFromIndexedDB = useCallback((database) => {
     const transaction = database.transaction(["uploadedBooks"], "readonly");
     const store = transaction.objectStore("uploadedBooks");
     const getAllRequest = store.getAll();
-    
     getAllRequest.onsuccess = (event) => {
       setBooks(event.target.result || []);
     };
-  };
+  }, []);
 
-  const loadSavedBooksFromIndexedDB = (database) => {
+  const loadSavedBooksFromIndexedDB = useCallback((database) => {
     const transaction = database.transaction(["savedBooks"], "readonly");
     const store = transaction.objectStore("savedBooks");
     const getAllRequest = store.getAll();
-    
     getAllRequest.onsuccess = (event) => {
-      const savedBooks = event.target.result.map(item => item.id);
-      setSavedBooks(savedBooks);
+      setSavedBooks(event.target.result.map((item) => item.id));
     };
-  };
+  }, []);
 
-  const saveBookToIndexedDB = (book) => {
+  const saveBookToIndexedDB = useCallback((book) => {
     if (!db) return;
-    
     const transaction = db.transaction(["uploadedBooks"], "readwrite");
     const store = transaction.objectStore("uploadedBooks");
     store.put(book);
-  };
+  }, [db]);
 
-  const saveSavedBookToIndexedDB = (bookId) => {
+  const saveSavedBookToIndexedDB = useCallback((bookId) => {
     if (!db) return;
-    
     const transaction = db.transaction(["savedBooks"], "readwrite");
     const store = transaction.objectStore("savedBooks");
     store.put({ id: bookId });
-  };
+  }, [db]);
 
-  const removeSavedBookFromIndexedDB = (bookId) => {
+  const removeSavedBookFromIndexedDB = useCallback((bookId) => {
     if (!db) return;
-    
     const transaction = db.transaction(["savedBooks"], "readwrite");
     const store = transaction.objectStore("savedBooks");
     store.delete(bookId);
-  };
+  }, [db]);
 
-  const deleteBookFromIndexedDB = (bookId) => {
+  const deleteBookFromIndexedDB = useCallback((bookId) => {
     if (!db) return;
-    
     const transaction = db.transaction(["uploadedBooks"], "readwrite");
     const store = transaction.objectStore("uploadedBooks");
     store.delete(bookId);
-  };
+  }, [db]);
 
-  const handleDirectoryUpload = async (event) => {
+  const handleDirectoryUpload = useCallback(async (event) => {
     if (isOffline) {
       alert("Không thể tải lên khi đang ở chế độ offline");
       return;
     }
-    
     setUploading(true);
     const files = Array.from(event.target.files);
-    
     const txtFiles = files
-      .filter(file => file.name.toLowerCase().endsWith('.txt'))
+      .filter((file) => file.name.toLowerCase().endsWith(".txt"))
       .sort((a, b) => {
-        const numA = parseInt(a.name.match(/\d+/)?.[0] || '0');
-        const numB = parseInt(b.name.match(/\d+/)?.[0] || '0');
+        const numA = parseInt(a.name.match(/\d+/)?.[0] || "0");
+        const numB = parseInt(b.name.match(/\d+/)?.[0] || "0");
         return numA - numB;
       });
-
     if (txtFiles.length === 0) {
       setUploading(false);
       alert("Không tìm thấy file .txt trong thư mục");
       return;
     }
-
     const newBook = {
       id: Date.now(),
       title: "Truyện Tải Lên",
       author: "Tác Giả Chưa Biết",
       genre: "truyện dịch tự động",
-      chapters: []
+      chapters: [],
     };
-
     for (const file of txtFiles) {
       try {
         const content = await readFileContent(file);
         newBook.chapters.push({
           id: newBook.chapters.length + 1,
-          title: `Chương ${newBook.chapters.length + 1}: ${file.name.replace('.txt', '')}`,
-          content: content
+          title: `Chương ${newBook.chapters.length + 1}: ${file.name.replace(".txt", "")}`,
+          content,
         });
       } catch (error) {
         console.error(`Lỗi đọc file ${file.name}:`, error);
         alert(`Không thể đọc file ${file.name}. Vui lòng kiểm tra định dạng hoặc mã hóa file.`);
       }
     }
-
     saveBookToIndexedDB(newBook);
-    const updatedBooks = [...books, newBook];
-    setBooks(updatedBooks);
+    setBooks([...books, newBook]);
     setSelectedBook(newBook);
-    
     setUploading(false);
     alert(`Đã tải lên thành công ${newBook.chapters.length} chương`);
-  };
+  }, [books, saveBookToIndexedDB]);
 
-  const readFileContent = (file) => {
+  const readFileContent = useCallback((file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        resolve(e.target.result);
-      };
-      
-      reader.onerror = (e) => {
-        reject(new Error(`Lỗi đọc file: ${e.target.error}`));
-      };
-      
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = (e) => reject(new Error(`Lỗi đọc file: ${e.target.error}`));
       reader.readAsText(file, "UTF-8");
     });
-  };
+  }, []);
 
-  const handleSaveBook = () => {
+  const handleSaveBook = useCallback(() => {
     if (!selectedBook) return;
-
-    const alreadySaved = savedBooks.includes(selectedBook.id);
-
-    if (alreadySaved) {
+    if (savedBooks.includes(selectedBook.id)) {
       alert("Truyện này đã được lưu!");
       return;
     }
-
     if (db) {
       saveSavedBookToIndexedDB(selectedBook.id);
       setSavedBooks([...savedBooks, selectedBook.id]);
@@ -208,21 +215,21 @@ export default function App() {
     } else {
       alert("Không thể lưu truyện do không hỗ trợ IndexedDB.");
     }
-  };
+  }, [db, savedBooks, selectedBook, saveSavedBookToIndexedDB]);
 
-  const handleShowDeleteModal = (bookId) => {
+  const handleShowDeleteModal = useCallback((bookId) => {
     setDeleteTargetId(bookId);
     setShowPasswordModal(true);
     setPasswordInput("");
     setPasswordError("");
-  };
+  }, []);
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = useCallback(() => {
     if (passwordInput === ADMIN_PASSWORD) {
       removeSavedBookFromIndexedDB(deleteTargetId);
-      setSavedBooks(savedBooks.filter(id => id !== deleteTargetId));
       deleteBookFromIndexedDB(deleteTargetId);
-      setBooks(books.filter(book => book.id !== deleteTargetId));
+      setSavedBooks(savedBooks.filter((id) => id !== deleteTargetId));
+      setBooks(books.filter((book) => book.id !== deleteTargetId));
       if (selectedBook?.id === deleteTargetId) {
         setSelectedBook(null);
         setSelectedChapter(null);
@@ -232,315 +239,766 @@ export default function App() {
     } else {
       setPasswordError("Mật khẩu không chính xác");
     }
-  };
+  }, [
+    passwordInput,
+    deleteTargetId,
+    selectedBook,
+    savedBooks,
+    books,
+    removeSavedBookFromIndexedDB,
+    deleteBookFromIndexedDB,
+  ]);
 
-  const handleEditBookTitle = (bookId) => {
-    const book = books.find(b => b.id === bookId);
+  const handleEditBookTitle = useCallback((bookId, currentTitle) => {
     setEditingBookId(bookId);
-    setNewBookTitle(book.title);
-  };
+    setNewBookTitle(currentTitle);
+  }, []);
 
-  const handleSaveBookTitle = () => {
+  const handleSaveBookTitle = useCallback(() => {
     if (!newBookTitle.trim()) {
       alert("Tên truyện không được để trống");
       return;
     }
-    const updatedBooks = books.map(book => 
+    const updatedBooks = books.map((book) =>
       book.id === editingBookId ? { ...book, title: newBookTitle } : book
     );
     setBooks(updatedBooks);
-    saveBookToIndexedDB(updatedBooks.find(b => b.id === editingBookId));
+    saveBookToIndexedDB(updatedBooks.find((b) => b.id === editingBookId));
     setEditingBookId(null);
-  };
+    setNewBookTitle("");
+  }, [books, editingBookId, newBookTitle, saveBookToIndexedDB]);
 
-  const increaseFont = () => setFontSize((prev) => Math.min(prev + 2, 24));
-  const decreaseFont = () => setFontSize((prev) => Math.max(prev - 2, 12));
+  const increaseFont = useCallback(() => setFontSize((prev) => Math.min(prev + 2, 24)), []);
+  const decreaseFont = useCallback(() => setFontSize((prev) => Math.max(prev - 2, 12)), []);
 
-  const goToNextChapter = () => {
+  const goToNextChapter = useCallback(() => {
     if (selectedBook && currentChapterIndex < selectedBook.chapters.length - 1) {
       setCurrentChapterIndex(currentChapterIndex + 1);
     }
-  };
+  }, [selectedBook, currentChapterIndex]);
 
-  const goToPreviousChapter = () => {
+  const goToPreviousChapter = useCallback(() => {
     if (selectedBook && currentChapterIndex > 0) {
       setCurrentChapterIndex(currentChapterIndex - 1);
     }
-  };
+  }, [selectedBook, currentChapterIndex]);
 
-  const handleGoHome = () => {
+  const handleGoHome = useCallback(() => {
     setSelectedBook(null);
     setSelectedChapter(null);
-  };
+    setSearchTerm("");
+  }, []);
 
-  // Lọc chương theo searchTerm
-  const filteredChapters = selectedBook?.chapters.filter(chapter => 
+  // Filter chapters based on search term
+  const filteredChapters = selectedBook?.chapters.filter((chapter) =>
     chapter.title.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900 font-sans transition-colors duration-300">
+    <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-indigo-50 text-gray-800 font-sans transition-colors duration-300">
+      {/* Status Bar */}
       {isOffline && (
-        <div className="bg-yellow-300 text-gray-900 p-2 text-center text-sm font-medium shadow">
+        <div className="bg-yellow-500 text-gray-900 p-2 text-center text-sm font-medium shadow-lg flex items-center justify-center gap-2 animate-pulse">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          </svg>
           Bạn đang ở chế độ offline. Một số tính năng có thể bị giới hạn.
         </div>
       )}
 
-      <header className="bg-blue-600 text-white shadow-lg sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold tracking-tight cursor-pointer" onClick={handleGoHome}>Truyện AI Dịch</h1>
-          <div className="flex space-x-2">
-            <button
-              onClick={() => document.getElementById('fileInput').click()}
-              className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm font-medium shadow"
-            >
-              Tải Lên Thư Mục
-            </button>
-            <input
-              id="fileInput"
-              type="file"
-              webkitdirectory
-              multiple
-              className="hidden"
-              onChange={handleDirectoryUpload}
-              accept=".txt,text/plain"
-            />
+      {/* Header */}
+      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white shadow-xl sticky top-0 z-30">
+        <div className="container mx-auto px-4 py-5">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3 mb-4 md:mb-0">
+              <div className="w-10 h-10 rounded-lg bg-white bg-opacity-20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                  />
+                </svg>
+              </div>
+              <h1
+                className="text-3xl font-extrabold tracking-tight cursor-pointer hover:text-yellow-300 transition"
+                onClick={handleGoHome}
+              >
+                Truyện AI Dịch
+              </h1>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => document.getElementById("fileInput").click()}
+                className="relative px-5 py-2 bg-white text-indigo-700 rounded-full hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0l-4 4m4-4v12"
+                  />
+                </svg>
+                Tải Lên Thư Mục
+                <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Tải thư mục chứa file .txt
+                </span>
+              </button>
+
+              <button
+                onClick={() => document.getElementById("featuredToggle").click()}
+                className="relative px-5 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                  />
+                </svg>
+                Truyện Đề Xuất
+                <span className="absolute -top-8 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white text-xs rounded py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                  Xem truyện nổi bật
+                </span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-6">
+      {/* File Input */}
+      <input
+        id="fileInput"
+        type="file"
+        webkitdirectory
+        multiple
+        className="hidden"
+        onChange={handleDirectoryUpload}
+        accept=".txt,text/plain"
+      />
+
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-8">
+        {/* Featured Books Section */}
+        <section id="featured" className="mb-12">
+          <h2 className="text-2xl font-bold text-indigo-800 mb-6 flex items-center gap-2">
+            <svg className="w-6 h-6 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+              />
+            </svg>
+            Truyện Đề Xuất
+          </h2>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredBooks.map((book) => (
+              <div
+                key={book.id}
+                className="bg-white rounded-xl overflow-hidden shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-2 cursor-pointer group"
+              >
+                <div className="relative h-48 overflow-hidden">
+                  <img
+                    src={book.cover}
+                    alt={book.title}
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    onError={(e) => (e.target.src = "https://via.placeholder.com/200x300?text=Cover+Not+Found")}
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end">
+                    <div className="p-4 text-white">
+                      <h3 className="font-bold text-lg">{book.title}</h3>
+                      <p className="text-sm text-gray-300">{book.author}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="font-semibold text-lg text-indigo-700">{book.title}</h3>
+                  <p className="text-sm text-gray-600 mt-1">Tác giả: {book.author}</p>
+                  <div className="mt-3 flex justify-between items-center">
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                      {book.genre}
+                    </span>
+                    <button
+                      onClick={() => setSelectedBook({ ...book, chapters: [] })}
+                      className="text-indigo-600 hover:text-indigo-800 font-medium text-sm flex items-center gap-1 group-hover:underline"
+                    >
+                      Đọc ngay
+                      <svg
+                        className="w-4 h-4 transition-transform group-hover:translate-x-1"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M14 5l7 7m0 0l-7 7m7-7H3"
+                        />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Loading Modal */}
         {uploading && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded-lg shadow-xl">
+          <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
+            <div className="bg-white p-8 rounded-2xl shadow-2xl max-w-md w-full animate-scaleIn">
               <div className="flex flex-col items-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mb-4"></div>
-                <p className="text-lg font-medium text-gray-700">Đang xử lý file...</p>
+                <div className="relative">
+                  <div className="w-16 h-16 rounded-full border-4 border-indigo-200"></div>
+                  <div className="absolute top-0 left-0 w-16 h-16 rounded-full border-4 border-indigo-600 border-t-transparent animate-spin"></div>
+                </div>
+                <p className="mt-6 text-lg font-medium text-gray-700">Đang xử lý file...</p>
                 <p className="text-sm text-gray-500 mt-2">Vui lòng chờ trong giây lát</p>
               </div>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="space-y-3">
-            <h2 className="text-xl font-semibold mb-2 text-blue-700">Danh Sách Truyện</h2>
-            {books.length === 0 ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center">
-                <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+        {/* Book Library Section */}
+        <section className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+          {/* Sidebar */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-indigo-700 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                  />
                 </svg>
-                <p className="text-gray-600 mb-4">Chưa có truyện nào được tải lên</p>
-                <button 
-                  onClick={() => document.getElementById('fileInput').click()}
-                  className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition shadow"
-                >
-                  Tải Lên Thư Mục
-                </button>
-              </div>
-            ) : (
-              books.map((book) => (
-                <div
-                  key={book.id}
-                  className={`p-3 rounded-lg cursor-pointer border-l-4 transition-all duration-200 shadow-sm ${
-                    selectedBook?.id === book.id
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-transparent hover:bg-gray-100"
-                  }`}
-                >
-                  <div className="flex justify-between items-center">
-                    {editingBookId === book.id ? (
-                      <input
-                        type="text"
-                        value={newBookTitle}
-                        onChange={(e) => setNewBookTitle(e.target.value)}
-                        className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    ) : (
-                      <div onClick={() => setSelectedBook(book)}>
-                        <h3 className="font-medium text-blue-700">{book.title}</h3>
-                        <p className="text-sm text-gray-600">Tác giả: {book.author}</p>
-                        <p className="text-xs text-gray-500 mt-1">Thể loại: {book.genre}</p>
-                      </div>
-                    )}
-                    <div className="flex space-x-2">
-                      {editingBookId === book.id ? (
-                        <button
-                          onClick={handleSaveBookTitle}
-                          className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600 transition"
-                        >
-                          Lưu
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleEditBookTitle(book.id)}
-                          className="px-3 py-1 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition"
-                        >
-                          Sửa
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleShowDeleteModal(book.id)}
-                        className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition"
-                      >
-                        Xóa
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+                Thư Viện Truyện
+              </h2>
 
-          <div className="md:col-span-2 space-y-6">
-            {!selectedBook ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center">
-                <svg className="w-12 h-12 mx-auto text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <p className="text-gray-600 mb-4">Vui lòng chọn một truyện để xem danh sách chương</p>
-              </div>
-            ) : !selectedChapter ? (
-              <>
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-blue-700">Danh Sách Chương - {selectedBook?.title}</h2>
-                  <button
-                    onClick={handleSaveBook}
-                    className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition text-sm font-medium shadow"
+              {books.length === 0 ? (
+                <div className="bg-indigo-50 rounded-xl p-6 text-center">
+                  <svg
+                    className="w-16 h-16 mx-auto text-indigo-200"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    Lưu Toàn Bộ Truyện
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                    />
+                  </svg>
+                  <p className="mt-4 text-gray-600">Chưa có truyện nào được tải lên</p>
+                  <button
+                    onClick={() => document.getElementById("fileInput").click()}
+                    className="mt-4 px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all duration-300"
+                  >
+                    Tải Lên Thư Mục
                   </button>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm chương..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
-                />
-                <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                  {filteredChapters.map((chapter) => (
+              ) : (
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                  {books.map((book) => (
                     <div
-                      key={chapter.id}
-                      onClick={() => setSelectedChapter(chapter)}
-                      className="p-3 border rounded hover:bg-blue-50 cursor-pointer transition-colors duration-200 shadow-sm"
+                      key={book.id}
+                      className={`p-4 rounded-lg border-l-4 transition-all duration-200 shadow-sm hover:shadow-md ${
+                        selectedBook?.id === book.id
+                          ? "border-indigo-500 bg-indigo-50"
+                          : "border-transparent hover:bg-gray-50"
+                      }`}
                     >
-                      <h3 className="font-medium text-blue-600">{chapter.title}</h3>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-md bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                          <svg
+                            className="w-5 h-5 text-indigo-600"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          {editingBookId === book.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                value={newBookTitle}
+                                onChange={(e) => setNewBookTitle(e.target.value)}
+                                className="flex-1 px-3 py-1 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              />
+                              <button
+                                onClick={handleSaveBookTitle}
+                                className="px-3 py-1 bg-green-500 text-white rounded-md hover:bg-green-600"
+                              >
+                                Lưu
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex justify-between items-center">
+                                <h3
+                                  className="font-medium text-indigo-700 truncate cursor-pointer"
+                                  onClick={() => setSelectedBook(book)}
+                                >
+                                  {book.title}
+                                </h3>
+                                <button
+                                  onClick={() => handleEditBookTitle(book.id, book.title)}
+                                  className="text-yellow-500 hover:text-yellow-600"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      strokeWidth="2"
+                                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                              <p className="text-sm text-gray-600 truncate">Tác giả: {book.author}</p>
+                              <p className="text-xs text-gray-500 mt-1 truncate">Thể loại: {book.genre}</p>
+                              <button
+                                onClick={() => handleShowDeleteModal(book.id)}
+                                className="text-red-500 hover:text-red-600 text-sm"
+                              >
+                                Xóa
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* Saved Books Section */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-indigo-700 mb-4 flex items-center gap-2">
+                <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                  />
+                </svg>
+                Truyện Đã Lưu
+              </h2>
+
+              {savedBooks.length === 0 ? (
+                <div className="bg-yellow-50 rounded-lg p-4 text-center">
+                  <svg
+                    className="w-8 h-8 mx-auto text-yellow-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2"
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                    />
+                  </svg>
+                  <p className="mt-2 text-gray-600">Chưa có truyện nào được lưu</p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-[30vh] overflow-y-auto pr-2">
+                  {savedBooks.map((bookId) => {
+                    const book = books.find((b) => b.id === bookId);
+                    return book ? (
+                      <div
+                        key={bookId}
+                        className="bg-indigo-50 text-indigo-700 px-4 py-2 rounded-full text-sm whitespace-nowrap flex items-center justify-between shadow-sm hover:shadow-md transition-shadow"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"
+                            />
+                          </svg>
+                          <span className="truncate">{book.title}</span>
+                        </div>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShowDeleteModal(bookId);
+                          }}
+                          className="ml-2 text-indigo-400 hover:text-indigo-900 transition"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Main Content Area */}
+          <div className="lg:col-span-3 space-y-8">
+            {!selectedBook ? (
+              <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+                <svg
+                  className="w-16 h-16 mx-auto text-indigo-200"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                  />
+                </svg>
+                <p className="mt-4 text-gray-600 text-lg">Vui lòng chọn một truyện để xem danh sách chương</p>
+              </div>
+            ) : !selectedChapter ? (
+              <>
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
+                    <h2 className="text-xl font-bold text-indigo-700 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                      Danh Sách Chương - {selectedBook?.title} ({filteredChapters.length} chương)
+                    </h2>
+                    <div className="flex flex-col md:flex-row gap-3 mt-3 md:mt-0">
+                      <input
+                        type="text"
+                        placeholder="Tìm kiếm chương..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <button
+                        onClick={handleSaveBook}
+                        className="px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 shadow"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"
+                          />
+                        </svg>
+                        Lưu Toàn Bộ Truyện
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[60vh] overflow-y-auto pr-2">
+                    {filteredChapters.length === 0 ? (
+                      <p className="text-gray-600 text-center col-span-full">
+                        Không tìm thấy chương phù hợp
+                      </p>
+                    ) : (
+                      filteredChapters.map((chapter) => (
+                        <div
+                          key={chapter.id}
+                          onClick={() => setSelectedChapter(chapter)}
+                          className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-1"
+                        >
+                          <h3 className="font-medium text-indigo-600">{chapter.title}</h3>
+                          <p className="text-xs text-gray-500 mt-1">Độ dài: {chapter.content.length} ký tự</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
               </>
             ) : (
               <>
-                <div className="flex justify-between items-center">
-                  <h2 className="text-xl font-semibold text-blue-700">{selectedChapter.title}</h2>
-                  <div className="flex space-x-2">
+                <div className="bg-white rounded-xl shadow-lg p-6">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6">
+                    <h2 className="text-xl font-bold text-indigo-700">{selectedChapter.title}</h2>
+                    <div className="flex space-x-2 mt-3 md:mt-0">
+                      <button
+                        onClick={decreaseFont}
+                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition shadow flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M20 12H4"
+                          />
+                        </svg>
+                        A-
+                      </button>
+                      <button
+                        onClick={increaseFont}
+                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition shadow flex items-center gap-1"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        A+
+                      </button>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{ fontSize: `${fontSize / 16}rem` }}
+                    className="prose prose-base max-w-none p-6 bg-gray-50 rounded-lg shadow-inner min-h-[500px] overflow-y-auto text-gray-800 leading-relaxed whitespace-pre-wrap prose-p:my-4 prose-li:my-1 prose-img:rounded-lg prose-img:shadow-md prose-img:max-w-full prose-img:h-auto"
+                  >
+                    {selectedChapter.content || "Nội dung chương chưa có sẵn"}
+                  </div>
+
+                  {/* Navigation Buttons */}
+                  <div className="flex justify-between mt-6">
                     <button
-                      onClick={decreaseFont}
-                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition shadow"
+                      onClick={goToPreviousChapter}
+                      disabled={currentChapterIndex === 0}
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform hover:scale-105"
                     >
-                      A-
+                      <svg
+                        className="w-5 h-5 rotate-180"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
+                      Chương trước
                     </button>
                     <button
-                      onClick={increaseFont}
-                      className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 transition shadow"
+                      onClick={goToNextChapter}
+                      disabled={currentChapterIndex === selectedBook.chapters.length - 1}
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform hover:scale-105"
                     >
-                      A+
+                      Chương tiếp theo
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 5l7 7-7 7"
+                        />
+                      </svg>
                     </button>
                   </div>
-                </div>
-                <div
-                  style={{ fontSize: `${fontSize / 16}rem` }}
-                  className="prose prose-base max-w-full p-4 bg-white rounded shadow-inner leading-relaxed whitespace-pre-wrap min-h-[500px] overflow-y-auto text-gray-800"
-                >
-                  {selectedChapter.content}
-                </div>
-                <div className="flex justify-between mt-4">
-                  <button
-                    onClick={goToPreviousChapter}
-                    disabled={currentChapterIndex === 0}
-                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
-                  >
-                    Chương trước
-                  </button>
-                  <button
-                    onClick={goToNextChapter}
-                    disabled={currentChapterIndex === selectedBook.chapters.length - 1}
-                    className="px-4 py-2 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 disabled:opacity-50 disabled:cursor-not-allowed transition shadow"
-                  >
-                    Chương tiếp theo
-                  </button>
                 </div>
               </>
             )}
           </div>
-        </div>
+        </section>
       </main>
 
-      <aside className="fixed bottom-0 left-0 w-full bg-white shadow-lg border-t z-20">
-        <div className="container mx-auto px-4 py-2">
-          <h3 className="text-sm font-medium mb-2 text-blue-700">Truyện đã lưu:</h3>
-          <div className="flex overflow-x-auto space-x-2 pb-2">
-            {savedBooks.length === 0 ? (
-              <span className="text-gray-500 italic">Chưa có truyện nào được lưu.</span>
-            ) : (
-              savedBooks.map((bookId, index) => {
-                const book = books.find(b => b.id === bookId);
-                return book ? (
-                  <div
-                    key={bookId}
-                    className="bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm whitespace-nowrap flex items-center shadow"
-                  >
-                    {book.title}
-                    <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleShowDeleteModal(bookId);
-                      }}
-                      className="ml-2 text-blue-400 hover:text-blue-900 transition"
-                    >
-                      ×
-                    </button>
-                  </div>
-                ) : null;
-              })
-            )}
+      {/* Footer */}
+      <footer className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white py-8 mt-12">
+        <div className="container mx-auto px-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
+                <svg className="w-6 h-6 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                  />
+                </svg>
+                Truyện AI Dịch
+              </h3>
+              <p className="text-indigo-100">Nền tảng đọc truyện dịch tự động với trải nghiệm tối ưu và giao diện hiện đại.</p>
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold mb-4">Liên Kết Nhanh</h4>
+              <ul className="space-y-2">
+                <li>
+                  <a href="#" className="text-indigo-100 hover:text-white transition">
+                    Trang Chủ
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-indigo-100 hover:text-white transition">
+                    Truyện Mới
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-indigo-100 hover:text-white transition">
+                    Thể Loại
+                  </a>
+                </li>
+                <li>
+                  <a href="#" className="text-indigo-100 hover:text-white transition">
+                    Liên Hệ
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <h4 className="text-lg font-semibold mb-4">Theo Dõi Chúng Tôi</h4>
+              <div className="flex space-x-4">
+                <a href="#" className="text-white hover:text-yellow-300 transition">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                  </svg>
+                </a>
+                <a href="#" className="text-white hover:text-yellow-300 transition">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723 10.05 10.05 0 01-3.127 1.195 4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.16a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
+                  </svg>
+                </a>
+                <a href="#" className="text-white hover:text-yellow-300 transition">
+                  <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 0C8.74 0 8.333.015 7.053.072 5.775.132 4.905.333 4.14.63c-.789.306-1.459.717-2.126 1.384S.935 3.35.63 4.14C.333 4.905.131 5.775.072 7.053.016 8.333 0 8.74 0 12s.015 3.667.072 4.947c.06 1.277.261 2.148.558 2.913.306.788.717 1.459 1.384 2.126.667.666 1.336 1.079 2.126 1.384.766.296 1.636.499 2.913.558C8.333 23.984 8.74 24 12 24s3.667-.016 4.947-.072c1.277-.06 2.148-.262 2.913-.558.788-.306 1.459-.718 2.126-1.384.666-.667 1.079-1.335 1.384-2.126.296-.765.499-1.636.558-2.913.06-1.28.072-1.687.072-4.947s-.015-3.667-.072-4.947c-.06-1.277-.262-2.149-.558-2.913-.306-.789-.718-1.459-1.384-2.126C21.319 1.347 20.651.935 19.86.63c-.765-.297-1.636-.499-2.913-.558C15.667.016 15.26 0 12 0zm0 2.16c3.203 0 3.585.016 4.85.071 1.17.055 1.805.249 2.227.415.562.217.96.477 1.382.896.419.42.679.819.896 1.381.164.422.36 1.057.413 2.227.057 1.266.07 1.646.07 4.85s-.015 3.585-.074 4.85c-.061 1.17-.256 1.805-.421 2.227-.224.562-.479.96-.899 1.382-.419.419-.824.679-1.38.896-.42.164-1.065.36-2.235.413-1.274.057-1.649.07-4.859.07-3.211 0-3.586-.015-4.859-.074-1.171-.061-1.816-.256-2.236-.421-.569-.224-.96-.479-1.379-.899-.421-.419-.69-.824-.9-1.38-.165-.42-.359-1.065-.42-2.235-.045-1.266-.061-1.649-.061-4.844 0-3.196.016-3.586.061-4.861.061-1.17.255-1.814.42-2.234.21-.57.479-.96.9-1.381.419-.419.81-.689 1.379-.898.42-.166 1.051-.361 2.221-.421 1.275-.045 1.65-.06 4.869-.06l.061.031zm0 3.678c-3.405 0-6.162 2.757-6.162 6.162s2.757 6.163 6.162 6.163 6.162-2.758 6.162-6.163c0-3.405-2.757-6.162-6.162-6.162zM12 16c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4zm7.846-10.405c0 .795-.646 1.44-1.44 1.44-.795 0-1.44-.646-1.44-1.44 0-.794.646-1.439 1.44-1.439.793-.001 1.44.645 1.44 1.439z" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+            <div className="mt-8 pt-6 border-t border-indigo-400 text-center text-indigo-100">
+              <p>© 2025 Truyện AI Dịch. Bản quyền thuộc về nhóm phát triển.</p>
+            </div>
           </div>
         </div>
-      </aside>
+      </footer>
 
+      {/* Password Modal */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl w-80">
-            <h3 className="text-lg font-medium mb-4 text-blue-700">Xác nhận mật khẩu</h3>
-            <input
-              type="password"
-              value={passwordInput}
-              onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="Nhập mật khẩu"
-              className="w-full p-2 border rounded mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              autoFocus
-            />
-            {passwordError && (
-              <p className="text-red-500 text-sm mb-3">{passwordError}</p>
-            )}
-            <div className="flex justify-end space-x-2">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 transform transition-all animate-scaleIn">
+            <div className="flex justify-between items-center mb-6">
+              <h3 className="text-2xl font-bold text-indigo-700">Xác Nhận Xóa</h3>
               <button
                 onClick={() => setShowPasswordModal(false)}
-                className="px-3 py-1 bg-gray-200 rounded-md hover:bg-gray-300 transition"
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-red-50 rounded-lg border border-red-100">
+              <div className="flex items-center gap-3 text-red-700">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+                <p className="font-medium">Bạn đang thực hiện hành động nhạy cảm</p>
+              </div>
+            </div>
+
+            <div className="mb-4">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Nhập mật khẩu quản trị
+              </label>
+              <input
+                id="password"
+                type="password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                placeholder="Nhập mật khẩu"
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
+                autoFocus
+              />
+              {passwordError && <p className="mt-2 text-red-600 text-sm">{passwordError}</p>}
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowPasswordModal(false)}
+                className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition"
               >
                 Hủy
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 transition shadow"
+                className="px-5 py-2 bg-gradient-to-r from-red-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all duration-300 transform hover:scale-105 shadow"
               >
-                Xác nhận
+                Xác Nhận Xóa
               </button>
             </div>
           </div>
         </div>
       )}
+
+      {/* CSS for animations */}
+      <style jsx>{`
+        @keyframes scaleIn {
+          from {
+            transform: scale(0.95);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1);
+            opacity: 1;
+          }
+        }
+        .animate-scaleIn {
+          animation: scaleIn 0.3s ease-out forwards;
+        }
+        @keyframes fadeOut {
+          from {
+            opacity: 1;
+            transform: scale(1);
+          }
+          to {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+        }
+        .animate-scaleOut {
+          animation: fadeOut 0.3s ease-out forwards;
+        }
+      `}</style>
     </div>
   );
 }
