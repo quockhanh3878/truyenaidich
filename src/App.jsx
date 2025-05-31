@@ -138,7 +138,7 @@ export default function App() {
     store.delete(bookId);
   }, [db]);
 
-  const deleteBookFromIndexedDB = useCallback((bookId) |  {
+  const deleteBookFromIndexedDB = useCallback((bookId) => {
     if (!db) return;
     const transaction = db.transaction(["uploadedBooks"], "readwrite");
     const store = transaction.objectStore("uploadedBooks");
