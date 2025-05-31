@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import './styles.css';
+
 export default function App() {
   const [books, setBooks] = useState([]);
   const [selectedBook, setSelectedBook] = useState(null);
@@ -307,7 +307,7 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white shadow-xl sticky top-0 z-30">
+      <header className="header text-white shadow-xl sticky top-0 z-30">
         <div className="container mx-auto px-4 py-5">
           <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3 mb-4 md:mb-0">
@@ -332,7 +332,7 @@ export default function App() {
             <div className="flex flex-wrap gap-3">
               <button
                 onClick={() => document.getElementById("fileInput").click()}
-                className="relative px-5 py-2 bg-white text-indigo-700 rounded-full hover:bg-opacity-90 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
+                className="relative px-5 py-2 bg-white text-indigo-700 rounded-full hover:bg-opacity-90 hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -350,7 +350,7 @@ export default function App() {
 
               <button
                 onClick={() => document.getElementById("featuredToggle").click()}
-                className="relative px-5 py-2 bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
+                className="relative px-5 py-2 bg-purple-600 text-white rounded-full hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 transition-all duration-300 transform hover:scale-105 hover:shadow-lg font-medium flex items-center gap-2 shadow-lg group"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -501,17 +501,17 @@ export default function App() {
                   <p className="mt-4 text-gray-600">Chưa có truyện nào được tải lên</p>
                   <button
                     onClick={() => document.getElementById("fileInput").click()}
-                    className="mt-4 px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all duration-300"
+                    className="mt-4 px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 transition-all duration-300"
                   >
                     Tải Lên Thư Mục
                   </button>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-2">
+                <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
                   {books.map((book) => (
                     <div
                       key={book.id}
-                      className={`p-4 rounded-lg border-l-4 transition-all duration-200 shadow-sm hover:shadow-md ${
+                      className={`p-4 rounded-xl border-l-4 transition-all duration-200 shadow-lg hover:shadow-md ${
                         selectedBook?.id === book.id
                           ? "border-indigo-500 bg-indigo-50"
                           : "border-transparent hover:bg-gray-50"
@@ -553,7 +553,7 @@ export default function App() {
                             <>
                               <div className="flex justify-between items-center">
                                 <h3
-                                  className="font-medium text-indigo-700 truncate cursor-pointer"
+                                  className="font-medium text-indigo-700 truncate cursor-pointer book-title"
                                   onClick={() => setSelectedBook(book)}
                                 >
                                   {book.title}
@@ -702,7 +702,7 @@ export default function App() {
                       />
                       <button
                         onClick={handleSaveBook}
-                        className="px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2 shadow"
+                        className="px-5 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 transition-all duration-300 flex items-center justify-center gap-2 shadow"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -729,7 +729,7 @@ export default function App() {
                           onClick={() => setSelectedChapter(chapter)}
                           className="p-4 border border-gray-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50 cursor-pointer transition-all duration-200 shadow-sm hover:shadow-md transform hover:-translate-y-1"
                         >
-                          <h3 className="font-medium text-indigo-600">{chapter.title}</h3>
+                          <h3 className="font-medium text-indigo-600 chapter-title">{chapter.title}</h3>
                           <p className="text-xs text-gray-500 mt-1">Độ dài: {chapter.content.length} ký tự</p>
                         </div>
                       ))
@@ -745,7 +745,7 @@ export default function App() {
                     <div className="flex space-x-2 mt-3 md:mt-0">
                       <button
                         onClick={decreaseFont}
-                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition shadow flex items-center gap-1"
+                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-indigo-500 transition shadow flex items-center gap-1"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -759,7 +759,7 @@ export default function App() {
                       </button>
                       <button
                         onClick={increaseFont}
-                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 transition shadow flex items-center gap-1"
+                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-full hover:bg-indigo-200 hover:bg-indigo-700 hover:text-white focus:ring-2 focus:ring-indigo-500 transition shadow flex items-center gap-1"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path
@@ -786,7 +786,7 @@ export default function App() {
                     <button
                       onClick={goToPreviousChapter}
                       disabled={currentChapterIndex === 0}
-                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform hover:scale-105"
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform hover:scale-105"
                     >
                       <svg
                         className="w-5 h-5 rotate-180"
@@ -806,7 +806,7 @@ export default function App() {
                     <button
                       onClick={goToNextChapter}
                       disabled={currentChapterIndex === selectedBook.chapters.length - 1}
-                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform"
+                      className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-full hover:shadow-lg hover:bg-indigo-700 focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 shadow-lg transform"
                     >
                       Chương tiếp theo
                       <svg className="w-5 h-5" fill="none" stroke="white" viewBox="0 0 24 24">
@@ -827,7 +827,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 text-white py-8 mt-12">
+      <footer className="bg-gradient-to-r from-indigo-500 to-indigo-700 text-white py-8 mt-12">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div>
@@ -885,8 +885,8 @@ export default function App() {
 
       {/* Password Modal */}
       {showPasswordModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50">
-          <div className="bg-white rounded-md shadow-lg p-8 w-full max-w-md">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center z-50 animate-scaleIn">
+          <div className="bg-white rounded-xl shadow-lg p-8 w-full max-w-md">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-xl font-bold text-indigo-600">Xác Nhận Xóa</h3>
               <button
